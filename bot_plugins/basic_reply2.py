@@ -25,7 +25,7 @@ __plugin_usage__ = '''根据不同的关键字返回特定的回复
 class DB:
     #连接数据库
     def __init__(self):
-        self.conn = sqlite3.connect("reply.db")
+        self.conn = sqlite3.connect("DB\\reply.db")
         self.cur = self.conn.cursor()
     #——————解析部分——————
     #解析群组或用户身份ID
