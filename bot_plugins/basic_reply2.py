@@ -1,6 +1,8 @@
 from nonebot import *
 from nonebot.permission import *
-import sqlite3,glob
+import sqlite3
+
+debugmod = False
 
 __plugin_name__ = 'basic_reply2'
 __plugin_usage__ = '''根据不同的关键字返回特定的回复
@@ -26,7 +28,7 @@ class DB:
         self.conn = sqlite3.connect("reply.db")
         self.cur = self.conn.cursor()
     #——————解析部分——————
-    #解析群组或用户信息
+    #解析群组或用户身份ID
     def context_id_analysis(self,context_id = "universal"):
         if context_id == "universal":
             return "universal"
@@ -37,21 +39,33 @@ class DB:
             context_id_analyzed = {"groupid":f"group{groupid}", "userid":userid}
         else:
             userid = (context_id.replace("/","T")).lstrip("TuserT")
-            context_id_analyzed = {"groupid":f"user{userid}", "userid":userid}        
+            context_id_analyzed = {"groupid":f"user{userid}", "userid":userid}
+        if debugmod:
+            print(f'——————context_id_analysis:——————\
+                    \n{str(context_id_analyzed)}\
+                    \n————————————————————————————————')        
         return context_id_analyzed
     #解析具体内容
     def current_arg_analysis(self,current_arg):
         current_arg = current_arg.strip()
-        if current_arg.endswith("pri=*"):
+        if "pri=" in current_arg:
             current_arg,priority = current_arg.split('pri=')
             priority = int(priority)
             current_arg = current_arg.strip()
         else:
             priority = 50
         keyword,replyword = current_arg.split("===")
+        if 'image' in keyword:
+            for temp in keyword.split(','):
+                if 'file=' in temp:
+                    keyword = temp
         current_arg_analyzed = {"keyword"  :keyword, 
                                 "replyword":replyword, 
                                 "priority" :priority}
+        if debugmod:
+            print(f'——————current_arg_analysis:——————\
+                    \n{str(current_arg_analyzed)}\
+                    \n————————————————————————————————')
         return current_arg_analyzed    
     #精确搜索
     def precise_search(self,inputmsg,context_id,only_private=False):
@@ -61,12 +75,17 @@ class DB:
             try:
                 allinfo = self.cur.execute(f'SELECT keyword, replyword, userid, priority, usedcount from "{context_id_analyzed["groupid"]}" ORDER BY priority DESC')
                 for row in allinfo:
-                    if str(row[0]) in str(inputmsg):
+                    print(str(row[0]))
+                    if (str(row[0]) in inputmsg) or (str(row[0]) == inputmsg):
                         returnmsg = {'keyword' :row[0],
                                     'replyword':row[1],
                                     'userid'   :row[2],
                                     'priority' :row[3],
                                     'usedcount':row[4]}
+                        if debugmod:
+                            print(f'——————returnmsg:——————\
+                                    \n{str(returnmsg)}\
+                                    \n———————————————————————')
                         return returnmsg              
             except sqlite3.OperationalError:
                 self.creat_table(context_id_analyzed)
@@ -74,7 +93,11 @@ class DB:
                             'replyword':'non',
                             'userid'   :'non',
                             'priority' :'non',
-                            'usedcount':'non'}     
+                            'usedcount':'non'}
+                if debugmod:
+                    print(f'——————returnmsg:——————\
+                            \n{str(returnmsg)}\
+                            \n———————————————————————')     
                 return returnmsg
         #搜索通用关键词
         if not only_private:
@@ -86,12 +109,20 @@ class DB:
                                 'userid'   :row[2],
                                 'priority' :row[3],
                                 'usedcount':row[4]}
+                    if debugmod:
+                        print(f'——————returnmsg:——————\
+                                \n{str(returnmsg)}\
+                                \n———————————————————————')
                     return returnmsg
         returnmsg = {'keyword' :'non',
                     'replyword':'non',
                     'userid'   :'non',
                     'priority' :'non',
-                    'usedcount':'non'}                
+                    'usedcount':'non'}
+        if debugmod:
+            print(f'——————returnmsg:——————\
+                    \n{str(returnmsg)}\
+                    \n———————————————————————')                
         return returnmsg        
     #——————执行部分——————
     #创建新表
@@ -113,8 +144,9 @@ class DB:
         if context_id == 'universal':
             returnmsg = self.precise_search(current_arg_analyzed['keyword'],'universal')            
             if returnmsg['keyword'] == 'non':
+                
                 self.cur.execute(f'''INSERT INTO 'universal' (keyword, replyword, userid, priority)
-                    VALUES ("{current_arg_analyzed['keyword']}", "{current_arg_analyzed['replyword']}", "superuser", "{current_arg_analyzed['priority']})"''')
+                    VALUES ("{current_arg_analyzed['keyword']}", "{current_arg_analyzed['replyword']}", "superuser", "{current_arg_analyzed['priority']}")''')
                 self.conn.commit()
                 return f'''已成功添加通用关键词{current_arg_analyzed['keyword']} ==> {current_arg_analyzed['replyword']}'''
             else:
@@ -138,11 +170,11 @@ class DB:
                 return f'''已成功添加{current_arg_analyzed['keyword']} ==> {current_arg_analyzed['replyword']}'''
             else:
                 if current_arg_analyzed['priority'] == 50:
-                    self.cur.execute(f'''UPDATE "{context_id_analyzed}"
+                    self.cur.execute(f'''UPDATE "{context_id_analyzed["groupid"]}"
                                         SET replyword = "{current_arg_analyzed['replyword']}" 
                                         WHERE keyword = "{returnmsg['keyword']}"''')
                 else:
-                    self.cur.execute(f'''UPDATE {context_id_analyzed}
+                    self.cur.execute(f'''UPDATE "{context_id_analyzed["groupid"]}" 
                                         SET replyword = "{current_arg_analyzed['replyword']}", priority = "{current_arg_analyzed['priority']}" 
                                         WHERE keyword = "{returnmsg['keyword']}"''')                       
                 self.conn.commit()  
@@ -211,6 +243,10 @@ async def _(session: CommandSession):
 @on_natural_language(only_to_me=False)
 async def _(session: NLPSession):
     global replymsg
+    if debugmod:
+        print(f'——————session.msg:——————\
+                \n{session.msg.strip()}\
+                \n———————————————————————')
     replymsg = db.precise_search(session.msg.strip(),context_id(session.event))
     if not replymsg['keyword'] == "non":
         return IntentCommand(61.0,'send_reply')
