@@ -5,7 +5,7 @@ import sqlite3
 debugmod = False
 
 __plugin_name__ = 'basic_reply2'
-__plugin_usage__ = '''根据不同的关键字返回特定的回复
+__plugin_usage__ = '''根据不同的关键字返回特定的回复,支持文字、表情及图片
 ————具体用法————
 添加一个特定回复
 /add key===value <pri=优先度>
@@ -18,7 +18,7 @@ __plugin_usage__ = '''根据不同的关键字返回特定的回复
 /showu(全局)
 查看单个特定回复的详细信息
 /check key
-/checku key
+/checku key(全局)
 '''
 
 #分析数据，操作数据库
@@ -73,27 +73,34 @@ class DB:
         #优先搜素私有关键词
         if not context_id == "universal":
             try:
-                allinfo = self.cur.execute(f'SELECT keyword, replyword, userid, priority, usedcount from "{context_id_analyzed["groupid"]}" ORDER BY priority DESC')
+                dbname = context_id_analyzed["groupid"]
+                allinfo = self.cur.execute(f'SELECT keyword, replyword, userid, priority, usedcount from "{dbname}" ORDER BY priority DESC')
                 for row in allinfo:
-                    print(str(row[0]))
-                    if (str(row[0]) in inputmsg) or (str(row[0]) == inputmsg):
-                        returnmsg = {'keyword' :row[0],
-                                    'replyword':row[1],
-                                    'userid'   :row[2],
-                                    'priority' :row[3],
-                                    'usedcount':row[4]}
-                        if debugmod:
-                            print(f'——————returnmsg:——————\
-                                    \n{str(returnmsg)}\
-                                    \n———————————————————————')
-                        return returnmsg              
+                    if debugmod:
+                        print(str(row[0]))
+                    if str(row[0]) in inputmsg:
+                        if ('CQ:image' in inputmsg) and (not '.image' in str(row[0])):
+                            pass
+                        else:
+                            returnmsg = {'keyword' :row[0],
+                                        'replyword':row[1],
+                                        'userid'   :row[2],
+                                        'priority' :row[3],
+                                        'usedcount':row[4],
+                                        'db':dbname}
+                            if debugmod:
+                                print(f'——————returnmsg:——————\
+                                        \n{str(returnmsg)}\
+                                        \n———————————————————————')
+                            return returnmsg             
             except sqlite3.OperationalError:
                 self.creat_table(context_id_analyzed)
                 returnmsg = {'keyword' :'non',
                             'replyword':'non',
                             'userid'   :'non',
                             'priority' :'non',
-                            'usedcount':'non'}
+                            'usedcount':'non',
+                            'db':'just_builded'}
                 if debugmod:
                     print(f'——————returnmsg:——————\
                             \n{str(returnmsg)}\
@@ -104,21 +111,26 @@ class DB:
             allinfo = self.cur.execute(f'SELECT keyword, replyword, userid, priority, usedcount from universal ORDER BY priority DESC')
             for row in allinfo:
                 if row[0] in inputmsg:
-                    returnmsg = {'keyword' :row[0],
-                                'replyword':row[1],
-                                'userid'   :row[2],
-                                'priority' :row[3],
-                                'usedcount':row[4]}
-                    if debugmod:
-                        print(f'——————returnmsg:——————\
-                                \n{str(returnmsg)}\
-                                \n———————————————————————')
-                    return returnmsg
+                    if ('CQ:image' in inputmsg) and (not '.image' in str(row[0])):
+                        pass
+                    else:
+                        returnmsg = {'keyword' :row[0],
+                                    'replyword':row[1],
+                                    'userid'   :row[2],
+                                    'priority' :row[3],
+                                    'usedcount':row[4],
+                                    'db':'universal'}
+                        if debugmod:
+                            print(f'——————returnmsg:——————\
+                                    \n{str(returnmsg)}\
+                                    \n———————————————————————')
+                        return returnmsg
         returnmsg = {'keyword' :'non',
                     'replyword':'non',
                     'userid'   :'non',
                     'priority' :'non',
-                    'usedcount':'non'}
+                    'usedcount':'non',
+                    'db':'non'}
         if debugmod:
             print(f'——————returnmsg:——————\
                     \n{str(returnmsg)}\
@@ -144,7 +156,6 @@ class DB:
         if context_id == 'universal':
             returnmsg = self.precise_search(current_arg_analyzed['keyword'],'universal')            
             if returnmsg['keyword'] == 'non':
-                
                 self.cur.execute(f'''INSERT INTO 'universal' (keyword, replyword, userid, priority)
                     VALUES ("{current_arg_analyzed['keyword']}", "{current_arg_analyzed['replyword']}", "superuser", "{current_arg_analyzed['priority']}")''')
                 self.conn.commit()
@@ -179,7 +190,6 @@ class DB:
                                         WHERE keyword = "{returnmsg['keyword']}"''')                       
                 self.conn.commit()  
                 return f'''已成功修改{current_arg_analyzed['keyword']} ==> {current_arg_analyzed['replyword']}'''      
-
     #删除\清空字段
     def delete(self,current_arg,context_id):
         if context_id == "universal":
@@ -227,9 +237,23 @@ class DB:
             except sqlite3.OperationalError:
                 self.creat_table(context_id_analyzed)   
         return keylist
-#实例化            
+    #使用次数统计
+    def usedcount(self):
+        if replymsg['db'] == 'non':
+            pass
+        else:
+            self.cur.execute(f'''UPDATE '{replymsg['db']}'
+                                SET usedcount = "{int(replymsg['usedcount'])+1}" 
+                                WHERE keyword = "{replymsg['keyword']}"''')
+            
+#实例化
+replymsg = {'keyword' :'non',
+            'replyword':'non',
+            'userid'   :'non',
+            'priority' :'non',
+            'usedcount':'non',
+            'db':'non'}            
 db = DB()
-replymsg = {}
 #乒乓球(bushi)
 @on_command('ping',only_to_me=False)
 async def _(session: CommandSession):
@@ -238,6 +262,7 @@ async def _(session: CommandSession):
 #返回回答
 @on_command('send_reply')
 async def _(session: CommandSession):
+    db.usedcount()
     await session.send(replymsg['replyword'])
 #检查关键词是否有对应的回答
 @on_natural_language(only_to_me=False)

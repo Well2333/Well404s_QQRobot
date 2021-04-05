@@ -12,3 +12,5 @@ NICKNAME = {'群内鬼', '机器人'}
 # 服务器和端口
 HOST = '127.0.0.1'
 PORT = 8765
+
+DEBUG = False

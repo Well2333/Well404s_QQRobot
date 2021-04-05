@@ -2,7 +2,7 @@ import nonebot
 from nonebot import on_command, CommandSession
 
 __plugin_name__ = 'help'
-__plugin_usage__ = '''/help 插件名以查看帮助信息'''
+__plugin_usage__ = '''恭喜你发现彩蛋一枚(然并卵)'''
 
 @on_command('help', aliases=['usage','Help'])
 async def _(session: CommandSession):
@@ -13,7 +13,9 @@ async def _(session: CommandSession):
     if not arg:
         # 如果用户没有发送参数，则发送功能列表
         await session.send(
-            '我现在支持的功能有：\n' + '\n'.join(p.name for p in plugins))
+            '我现在支持的功能有：' + \
+            '\n'.join(p.name for p in plugins) + \
+            '\n/help <插件名>以查看插件的具体帮助')
         return
 
     # 如果发了参数则发送相应命令的使用帮助
