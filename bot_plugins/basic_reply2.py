@@ -2,6 +2,8 @@ from nonebot import *
 from nonebot.permission import *
 import sqlite3
 
+import bot_plugins.blacklist as black
+
 debugmod = False
 
 __plugin_name__ = 'basic_reply2'
@@ -257,7 +259,8 @@ db = DB()
 #乒乓球(bushi)
 @on_command('ping',only_to_me=False)
 async def _(session: CommandSession):
-    await session.send('pong!')
+    if await black.check('ping',context_id(session.event)):
+        await session.send('pong!')
 #——————————————自然语言处理——————————————
 #返回回答
 @on_command('send_reply')
@@ -291,42 +294,49 @@ async def _(session: CommandSession):
 #查看通用关键词列表
 @on_command('show_key_universal',aliases=["showu",'showkeyuniversal'],only_to_me=False)
 async def _(session: CommandSession):
-    await session.send('通用关键词列表：\n'+str(db.check('universal')))
+    if await black.check('showu',context_id(session.event)):
+        await session.send('通用关键词列表：\n'+str(db.check('universal')))
 #查看单个通用关键词的详细信息
 @on_command('check_key_universal',aliases=["checku",'checkkeyuniversal'],only_to_me=False)
 async def _(session: CommandSession):
-    info = db.precise_search(session.current_arg,'universal')
-    await session.send(f"通用关键词信息:\
-                        \n关键词名:{info['keyword']}\
-                        \n回复内容:{info['replyword']}\
-                        \n添加者id:{info['userid']}\
-                        \n优先度:{info['priority']}\
-                        \n累计使用次数:{info['usedcount']}")
+    if await black.check('checku',context_id(session.event)):
+        info = db.precise_search(session.current_arg,'universal')
+        await session.send(f"通用关键词信息:\
+                            \n关键词名:{info['keyword']}\
+                            \n回复内容:{info['replyword']}\
+                            \n添加者id:{info['userid']}\
+                            \n优先度:{info['priority']}\
+                            \n累计使用次数:{info['usedcount']}")
 #——————————————私有数据库操作——————————————
 #增添私有关键词
 @on_command('add_key',aliases=['add','addkey'],only_to_me=False)
 async def _(session: CommandSession):
-    await session.send(db.insert(session.current_arg,context_id(session.event)))
+    if await black.check('add',context_id(session.event)):
+        await session.send(db.insert(session.current_arg,context_id(session.event)))
 #删除私有关键词
 @on_command('del_key',aliases=["del","delkey"],only_to_me=False)
 async def _(session: CommandSession):
-    await session.send(db.delete(session.current_arg,context_id(session.event)))
+    if await black.check('del',context_id(session.event)):
+        await session.send(db.delete(session.current_arg,context_id(session.event)))
 #清空私有关键词列表
 @on_command('clear_keys',permission=(SUPERUSER|GROUP_ADMIN|PRIVATE_FRIEND),aliases=["clear",'clearkeys'],only_to_me=False)
 async def _(session: CommandSession):
-    await session.send(db.delete('all',context_id(session.event)))
+    if await black.check('clear',context_id(session.event)):
+        await session.send(db.delete('all',context_id(session.event)))
 #查看私有关键词列表
 @on_command('show_key',aliases=["show",'showkey'],only_to_me=False)
 async def _(session: CommandSession):
-    await session.send('私有关键词列表：\n'+str(db.check(context_id(session.event))))
+    if await black.check('show',context_id(session.event)):
+        await session.send('私有关键词列表：\n'+str(db.check(context_id(session.event))))
 #查看单个私有关键词的详细信息
 @on_command('check_key',aliases=["check",'checkkey'],only_to_me=False)
 async def _(session: CommandSession):
-    info = db.precise_search(session.current_arg,context_id(session.event))
-    await session.send(f"私有关键词信息:\
-                        \n关键词名:{info['keyword']}\
-                        \n回复内容:{info['replyword']}\
-                        \n添加者id:{info['userid']}\
-                        \n优先度:{info['priority']}\
-                        \n累计使用次数:{info['usedcount']}")
+    if await black.check('check',context_id(session.event)):
+        info = db.precise_search(session.current_arg,context_id(session.event))
+        await session.send(f"私有关键词信息:\
+                            \n关键词名:{info['keyword']}\
+                            \n回复内容:{info['replyword']}\
+                            \n添加者id:{info['userid']}\
+                            \n优先度:{info['priority']}\
+                            \n累计使用次数:{info['usedcount']}")
                        
